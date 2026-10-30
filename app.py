@@ -27,11 +27,10 @@ ADMIN_EMAILS = ["jashikasahu862@gmail.com", "yogesh@bminfotradegroup.com"]
 # Exact Live App URL
 APP_URL = "https://shift-roster-automation-nrg8ndrrz2jdtbml6txg4q.streamlit.app"
 
-# Header
-st.title("📅 Enterprise Roster Management & Secure Dispatch System")
-st.write("Automated shift tracking, rotation engine, approval workflow, and multi-channel notification console.")
-
 # Session State Initializations
+if 'admin_password' not in st.session_state:
+    st.session_state.admin_password = "admin123"
+
 if 'roster' not in st.session_state:
     raw_df = pd.DataFrame([
         {"Employee": "Deepak", "Email": "deepak@bminfotradegroup.com", "Regular Shift": "10:00 AM – 7:00 PM", "Weekly Off": "Sunday", "Status": "Working", "Replacement": "None"},
@@ -49,13 +48,17 @@ if 'pending_requests' not in st.session_state:
 if 'is_admin' not in st.session_state:
     st.session_state.is_admin = False
 
-# Robust Mobile Query Parameter Unlock Logic
+# Robust Query Parameter Auto Unlock (Works seamless on Phone & Laptop)
 try:
     params = st.query_params
     if params.get("admin") == "true":
         st.session_state.is_admin = True
 except Exception:
     pass
+
+# Header
+st.title("📅 Enterprise Roster Management & Secure Dispatch System")
+st.write("Automated shift tracking, rotation engine, approval workflow, and multi-channel notification console.")
 
 # --- DISPATCH / ALERT HELPER FUNCTION WITH EXACT LIVE LINK ---
 def send_admin_alert_email(req_data):
@@ -78,7 +81,7 @@ A new shift change request requires your approval:
 - Requested Status: {req_data['Status']}
 - Replacement Coverage: {req_data['Replacement']}
 
-📲 Click below link to open approval console on Mobile / PC:
+📲 Click below link to review and Approve/Reject:
 {direct_approval_url}
 
 Regards,
@@ -99,12 +102,24 @@ Roster Automation System"""
 # --- SIDEBAR CONTROLS ---
 st.sidebar.header("🎯 Shift Adjustment Controls")
 
-# SIDEBAR QUICK ADMIN UNLOCK FOR MOBILE BROWSER
+# SIDEBAR ADMIN UNLOCK & PASSKEY CHANGE SYSTEM
 st.sidebar.markdown("---")
-admin_key_input = st.sidebar.text_input("🔑 Admin Unlock Key", type="password", help="Enter admin key to reveal approval queue")
-if admin_key_input == "admin123":
+admin_key_input = st.sidebar.text_input("🔑 Admin Unlock Key", type="password", help="Enter admin key to unlock approval queue")
+
+if admin_key_input == st.session_state.admin_password or st.session_state.is_admin:
     st.session_state.is_admin = True
     st.sidebar.success("🔓 Admin Approval Mode Active")
+    
+    # PASSKEY CHANGE OPTION (ONLY FOR LOGGED IN ADMIN)
+    with st.sidebar.expander("⚙️ Change Admin Passkey"):
+        new_pass = st.text_input("Enter New Passkey", type="password")
+        confirm_pass = st.text_input("Confirm New Passkey", type="password")
+        if st.button("Update Passkey"):
+            if new_pass != "" and new_pass == confirm_pass:
+                st.session_state.admin_password = new_pass
+                st.success("✅ Passkey updated successfully!")
+            else:
+                st.error("❌ Passwords do not match or empty.")
 
 st.sidebar.markdown("---")
 selected_date = st.sidebar.date_input("Select Roster Date", datetime.now())
@@ -220,34 +235,31 @@ with col3:
 
 st.markdown("---")
 
-# ALWAYS SHOW APPROVAL QUEUE IF PENDING REQUESTS EXIST AND IS_ADMIN IS TRUE
-if st.session_state.is_admin or len(st.session_state.pending_requests) > 0:
+# APPROVAL QUEUE DISPLAY (CROSS-DEVICE SYNCED & CLEAN)
+if len(st.session_state.pending_requests) > 0 and st.session_state.is_admin:
     st.error("🚨 Pending Shift Change Approvals Required!")
     st.subheader("🛡️ Admin Approval Queue (Jashika / Yogesh Sir)")
     
-    if not st.session_state.is_admin:
-        st.info("🔒 Mobile View: Enter Passkey `admin123` in Sidebar to Unlock Approve/Reject buttons.")
-    else:
-        for idx, req in enumerate(st.session_state.pending_requests):
-            col_a, col_b, col_c = st.columns([3, 1, 1])
-            with col_a:
-                st.write(f"📌 **{req['Employee']}** requested change for **{req['Date']}** $\rightarrow$ Shift: **{req['Shift']}** | Status: **{req['Status']}** | Replacement: **{req['Replacement']}**")
-            with col_b:
-                if st.button(f"✅ Approve #{idx+1}"):
-                    emp_idx = st.session_state.roster[st.session_state.roster["Employee"] == req['Employee']].index[0]
-                    st.session_state.roster.at[emp_idx, "Regular Shift"] = req['Shift']
-                    st.session_state.roster.at[emp_idx, "Status"] = req['Status']
-                    st.session_state.roster.at[emp_idx, "Replacement"] = req['Replacement']
-                    
-                    st.session_state.pending_requests.pop(idx)
-                    st.success("Change approved & roster updated!")
-                    st.rerun()
-            with col_c:
-                if st.button(f"❌ Reject #{idx+1}"):
-                    st.session_state.pending_requests.pop(idx)
-                    st.warning("Change request rejected.")
-                    st.rerun()
-        st.markdown("---")
+    for idx, req in enumerate(st.session_state.pending_requests):
+        col_a, col_b, col_c = st.columns([3, 1, 1])
+        with col_a:
+            st.write(f"📌 **{req['Employee']}** requested change for **{req['Date']}** $\rightarrow$ Shift: **{req['Shift']}** | Status: **{req['Status']}** | Replacement: **{req['Replacement']}**")
+        with col_b:
+            if st.button(f"✅ Approve #{idx+1}"):
+                emp_idx = st.session_state.roster[st.session_state.roster["Employee"] == req['Employee']].index[0]
+                st.session_state.roster.at[emp_idx, "Regular Shift"] = req['Shift']
+                st.session_state.roster.at[emp_idx, "Status"] = req['Status']
+                st.session_state.roster.at[emp_idx, "Replacement"] = req['Replacement']
+                
+                st.session_state.pending_requests.pop(idx)
+                st.success("Change approved & roster updated!")
+                st.rerun()
+        with col_c:
+            if st.button(f"❌ Reject #{idx+1}"):
+                st.session_state.pending_requests.pop(idx)
+                st.warning("Change request rejected.")
+                st.rerun()
+    st.markdown("---")
 
 st.subheader("📊 Live Shift Roster Status")
 st.dataframe(st.session_state.roster[["Employee", "Email", "Regular Shift", "Weekly Off", "Status", "Replacement"]], use_container_width=True)
