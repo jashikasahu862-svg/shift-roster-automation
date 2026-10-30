@@ -49,7 +49,7 @@ if 'pending_requests' not in st.session_state:
 if 'is_admin' not in st.session_state:
     st.session_state.is_admin = False
 
-# Query Parameter Based Auto Admin Enable (Secret Access URL)
+# Query Parameter Based Auto Admin Enable (Secret Access Link)
 query_params = st.query_params
 if "admin" in query_params and query_params["admin"] == "true":
     st.session_state.is_admin = True
@@ -97,7 +97,7 @@ Roster Automation System"""
 # --- SIDEBAR CONTROLS ---
 st.sidebar.header("🎯 Shift Adjustment Controls")
 
-# Hidden Secret Toggle for Admin Authentication (No text like "Admin Access" for normal users)
+# Hidden Secret Toggle for Admin Authentication
 st.sidebar.markdown("---")
 admin_unlock_check = st.sidebar.checkbox("🔒 Authorized Portal Access")
 if admin_unlock_check:
@@ -127,7 +127,7 @@ if 'last_selected_date' not in st.session_state or st.session_state.last_selecte
             if st.session_state.roster.at[idx, "Status"] == "Weekly Off":
                 st.session_state.roster.at[idx, "Status"] = "Working"
 
-# ⚡ 1-CLICK POST-5th NOV SCHEDULER (Always Available)
+# ⚡ 1-CLICK POST-5th NOV SCHEDULER (WITH FIXED DEEPAK SHIFT)
 st.sidebar.markdown("---")
 st.sidebar.subheader("⚡ 1-Click Post-5th Nov Scheduler")
 
@@ -147,12 +147,20 @@ if st.sidebar.button("🎲 Execute Standard Shift Rotation"):
     }
 
     for idx, row in st.session_state.roster.iterrows():
-        current_s = row["Regular Shift"]
-        new_s = shift_rotation_map.get(current_s, "10:00 AM – 7:00 PM")
-        new_off = shift_to_off_map.get(new_s, "Sunday")
+        emp_name = row["Employee"]
+        
+        # EXCEPTION RULE: DEEPAK FIXATION
+        if emp_name == "Deepak":
+            st.session_state.roster.at[idx, "Regular Shift"] = "10:00 AM – 7:00 PM"
+            st.session_state.roster.at[idx, "Weekly Off"] = "Sunday"
+            new_off = "Sunday"
+        else:
+            current_s = row["Regular Shift"]
+            new_s = shift_rotation_map.get(current_s, "10:00 AM – 7:00 PM")
+            new_off = shift_to_off_map.get(new_s, "Sunday")
 
-        st.session_state.roster.at[idx, "Regular Shift"] = new_s
-        st.session_state.roster.at[idx, "Weekly Off"] = new_off
+            st.session_state.roster.at[idx, "Regular Shift"] = new_s
+            st.session_state.roster.at[idx, "Weekly Off"] = new_off
 
         if new_off.strip().lower() == selected_day_name.strip().lower():
             st.session_state.roster.at[idx, "Status"] = "Weekly Off"
@@ -160,7 +168,7 @@ if st.sidebar.button("🎲 Execute Standard Shift Rotation"):
         else:
             st.session_state.roster.at[idx, "Status"] = "Working"
 
-    st.sidebar.success("✅ Shifts successfully rotated!")
+    st.sidebar.success("✅ Shifts rotated! (Deepak fixed in General Shift)")
 
 # --- SECURE INDIVIDUAL OVERRIDE REQUEST ---
 st.sidebar.markdown("---")
@@ -295,7 +303,7 @@ def send_emails_to_all(summary_text, roster_df, date_str):
         return False, str(e)
 
 def send_to_teams(table_md, date_str):
-    teams_webhook_url = "https://default43b2ab88f668409fba768db3e53453.ae.environment.api.powerplatform.com:443/workflows/..."
+    teams_webhook_url = "https://default43b2ab88f668409fba768db3e53453.ae.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/14/workflows/b6117c056357435e85db7a6831c357db/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=yhQphJ2WDC86SkJzXhDzcXdEIKcSsEFMtPOeQeR73UU"
     
     payload = {
         "type": "message",
