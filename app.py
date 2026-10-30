@@ -22,7 +22,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Admin / Approver Email IDs (Alerts sirf inhi 2 addresses par jayenge)
-ADMIN_EMAILS = ["jashika.sahu@bminfotradegroup.com", "yogesh@bminfotradegroup.com"]
+ADMIN_EMAILS = ["jashikasahu862@gmail.com", "yogesh@bminfotradegroup.com"]
 
 # Header
 st.title("📅 Enterprise Roster Management & Secure Dispatch System")
