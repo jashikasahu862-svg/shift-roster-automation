@@ -49,10 +49,13 @@ if 'pending_requests' not in st.session_state:
 if 'is_admin' not in st.session_state:
     st.session_state.is_admin = False
 
-# Query Parameter Based Auto Admin Enable (Secret Access Link)
-query_params = st.query_params
-if "admin" in query_params and query_params["admin"] == "true":
-    st.session_state.is_admin = True
+# Robust Mobile Query Parameter Unlock Logic
+try:
+    params = st.query_params
+    if params.get("admin") == "true":
+        st.session_state.is_admin = True
+except Exception:
+    pass
 
 # --- DISPATCH / ALERT HELPER FUNCTION WITH EXACT LIVE LINK ---
 def send_admin_alert_email(req_data):
@@ -63,7 +66,6 @@ def send_admin_alert_email(req_data):
         server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
         server.login(sender_email, app_password)
         
-        # Adding secret admin parameter in link for instant admin unlock
         direct_approval_url = f"{APP_URL}?admin=true"
         
         body = f"""Hello Admin,
@@ -76,7 +78,7 @@ A new shift change request requires your approval:
 - Requested Status: {req_data['Status']}
 - Replacement Coverage: {req_data['Replacement']}
 
-📲 Please click the link below to review and Approve/Reject:
+📲 Click below link to open approval console on Mobile / PC:
 {direct_approval_url}
 
 Regards,
@@ -97,19 +99,12 @@ Roster Automation System"""
 # --- SIDEBAR CONTROLS ---
 st.sidebar.header("🎯 Shift Adjustment Controls")
 
-# Hidden Secret Toggle for Admin Authentication
+# SIDEBAR QUICK ADMIN UNLOCK FOR MOBILE BROWSER
 st.sidebar.markdown("---")
-admin_unlock_check = st.sidebar.checkbox("🔒 Authorized Portal Access")
-if admin_unlock_check:
-    admin_pass_input = st.sidebar.text_input("Passkey:", type="password")
-    if admin_pass_input == "admin123":
-        st.session_state.is_admin = True
-        st.sidebar.success("Admin Mode Active")
-    else:
-        st.session_state.is_admin = False
-else:
-    if "admin" not in query_params:
-        st.session_state.is_admin = False
+admin_key_input = st.sidebar.text_input("🔑 Admin Unlock Key", type="password", help="Enter admin key to reveal approval queue")
+if admin_key_input == "admin123":
+    st.session_state.is_admin = True
+    st.sidebar.success("🔓 Admin Approval Mode Active")
 
 st.sidebar.markdown("---")
 selected_date = st.sidebar.date_input("Select Roster Date", datetime.now())
@@ -127,7 +122,7 @@ if 'last_selected_date' not in st.session_state or st.session_state.last_selecte
             if st.session_state.roster.at[idx, "Status"] == "Weekly Off":
                 st.session_state.roster.at[idx, "Status"] = "Working"
 
-# ⚡ 1-CLICK POST-5th NOV SCHEDULER (WITH FIXED DEEPAK SHIFT)
+# ⚡ 1-CLICK POST-5th NOV SCHEDULER (DEEPAK FIXED IN GENERAL SHIFT)
 st.sidebar.markdown("---")
 st.sidebar.subheader("⚡ 1-Click Post-5th Nov Scheduler")
 
@@ -149,7 +144,7 @@ if st.sidebar.button("🎲 Execute Standard Shift Rotation"):
     for idx, row in st.session_state.roster.iterrows():
         emp_name = row["Employee"]
         
-        # EXCEPTION RULE: DEEPAK FIXATION
+        # FIXED RULE FOR DEEPAK
         if emp_name == "Deepak":
             st.session_state.roster.at[idx, "Regular Shift"] = "10:00 AM – 7:00 PM"
             st.session_state.roster.at[idx, "Weekly Off"] = "Sunday"
@@ -207,7 +202,7 @@ if st.sidebar.button("📩 Submit Change Request for Approval"):
     }
     st.session_state.pending_requests.append(req_data)
     
-    # Trigger private email alert to Jashika & Yogesh Sir
+    # Trigger private email alert
     send_admin_alert_email(req_data)
     st.sidebar.success(f"✅ Request submitted successfully! Sent for Admin approval.")
 
@@ -225,12 +220,14 @@ with col3:
 
 st.markdown("---")
 
-# STRICT ADMIN-ONLY APPROVAL PANEL (ONLY SHOWS WHEN ADMIN MODE IS ACTIVE)
-if st.session_state.is_admin:
-    if len(st.session_state.pending_requests) > 0:
-        st.error("🚨 Pending Shift Change Approvals Required!")
-        st.subheader("🛡️ Admin Approval Queue (Jashika / Yogesh Sir)")
-        
+# ALWAYS SHOW APPROVAL QUEUE IF PENDING REQUESTS EXIST AND IS_ADMIN IS TRUE
+if st.session_state.is_admin or len(st.session_state.pending_requests) > 0:
+    st.error("🚨 Pending Shift Change Approvals Required!")
+    st.subheader("🛡️ Admin Approval Queue (Jashika / Yogesh Sir)")
+    
+    if not st.session_state.is_admin:
+        st.info("🔒 Mobile View: Enter Passkey `admin123` in Sidebar to Unlock Approve/Reject buttons.")
+    else:
         for idx, req in enumerate(st.session_state.pending_requests):
             col_a, col_b, col_c = st.columns([3, 1, 1])
             with col_a:
@@ -268,7 +265,7 @@ for _, row in st.session_state.roster.iterrows():
     replacement = row["Replacement"]
     table_rows.append(f"| **{emp}** | {shift} | {status} | {replacement} |")
 
-table_header = "| Employee | Shift Timing | Status | Coverage / Replacement |\n| :--- | :--- | :--- | :--- |"
+table_header = "| Employee | Status | Shift Timing | Coverage / Replacement |\n| :--- | :--- | :--- | :--- |"
 markdown_table_str = table_header + "\n" + "\n".join(table_rows)
 
 notification_text = f"**Daily Shift Operational Summary ({formatted_date_str}):**\n\n" + markdown_table_str
@@ -303,7 +300,7 @@ def send_emails_to_all(summary_text, roster_df, date_str):
         return False, str(e)
 
 def send_to_teams(table_md, date_str):
-    teams_webhook_url = "https://default43b2ab88f668409fba768db3e53453.ae.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/14/workflows/b6117c056357435e85db7a6831c357db/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=yhQphJ2WDC86SkJzXhDzcXdEIKcSsEFMtPOeQeR73UU"
+    teams_webhook_url = "https://default43b2ab88f668409fba768db3e53453.ae.environment.api.powerplatform.com:443/workflows/..."
     
     payload = {
         "type": "message",
