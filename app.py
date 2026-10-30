@@ -21,14 +21,14 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Admin / Approver Email IDs (Alerts sirf inhi 2 addresses par jayenge)
+# Admin / Approver Email IDs
 ADMIN_EMAILS = ["jashikasahu862@gmail.com", "yogesh@bminfotradegroup.com"]
 
 # Header
 st.title("📅 Enterprise Roster Management & Secure Dispatch System")
 st.write("Automated shift tracking, rotation engine, approval workflow, and multi-channel notification console.")
 
-# Current Initial Baseline Setup
+# Session State Initializations
 if 'roster' not in st.session_state:
     raw_df = pd.DataFrame([
         {"Employee": "Deepak", "Email": "deepak@bminfotradegroup.com", "Regular Shift": "10:00 AM – 7:00 PM", "Weekly Off": "Sunday", "Status": "Working", "Replacement": "None"},
@@ -40,20 +40,37 @@ if 'roster' not in st.session_state:
     ])
     st.session_state.roster = raw_df.sort_values(by="Employee").reset_index(drop=True)
 
-# Pending Approval Requests Queue
 if 'pending_requests' not in st.session_state:
     st.session_state.pending_requests = []
 
-# --- DISPATCH / ALERT HELPER FUNCTION ---
+if 'is_admin' not in st.session_state:
+    st.session_state.is_admin = False
+
+# --- DISPATCH / ALERT HELPER FUNCTION WITH DIRECT LINK ---
 def send_admin_alert_email(req_data):
     sender_email = "jashikasahu862@gmail.com"
     app_password = "ezxg vper qgqa xvpb"
-    
+    APP_URL = "https://shift-roster-automation.streamlit.app" 
+
     try:
         server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
         server.login(sender_email, app_password)
         
-        body = f"Hello Admin,\n\nA new shift change request requires your approval:\n\n- Employee: {req_data['Employee']}\n- Date: {req_data['Date']}\n- Requested Shift: {req_data['Shift']}\n- Requested Status: {req_data['Status']}\n- Replacement Coverage: {req_data['Replacement']}\n\nPlease login to the Roster Console to Approve or Reject.\n\nRegards,\nRoster Automation System"
+        body = f"""Hello Admin,
+
+A new shift change request requires your approval:
+
+- Employee: {req_data['Employee']}
+- Date: {req_data['Date']}
+- Requested Shift: {req_data['Shift']}
+- Requested Status: {req_data['Status']}
+- Replacement Coverage: {req_data['Replacement']}
+
+📲 Please click the link below to review and Approve/Reject:
+{APP_URL}
+
+Regards,
+Roster Automation System"""
         
         for admin_email in ADMIN_EMAILS:
             msg = MIMEText(body)
@@ -70,6 +87,25 @@ def send_admin_alert_email(req_data):
 # --- SIDEBAR CONTROLS ---
 st.sidebar.header("🎯 Shift Adjustment Controls")
 
+# ADMIN LOGIN / LOGOUT SECTION IN SIDEBAR
+st.sidebar.markdown("---")
+if not st.session_state.is_admin:
+    st.sidebar.subheader("🔒 Admin Access")
+    admin_pass_input = st.sidebar.text_input("Enter Passkey (Jashika / Yogesh Sir)", type="password")
+    if st.sidebar.button("Login as Admin"):
+        if admin_pass_input == "admin123":
+            st.session_state.is_admin = True
+            st.sidebar.success("Logged in as Admin!")
+            st.rerun()
+        else:
+            st.sidebar.error("Incorrect Admin Passkey!")
+else:
+    st.sidebar.success("🔓 Logged in as Admin (Jashika / Yogesh Sir)")
+    if st.sidebar.button("Logout Admin"):
+        st.session_state.is_admin = False
+        st.rerun()
+
+st.sidebar.markdown("---")
 selected_date = st.sidebar.date_input("Select Roster Date", datetime.now())
 formatted_date_str = selected_date.strftime("%d-%b-%Y (%A)")
 selected_day_name = selected_date.strftime("%A")
@@ -85,40 +121,41 @@ if 'last_selected_date' not in st.session_state or st.session_state.last_selecte
             if st.session_state.roster.at[idx, "Status"] == "Weekly Off":
                 st.session_state.roster.at[idx, "Status"] = "Working"
 
-# ⚡ 1-CLICK SHIFT ROTATION
-st.sidebar.markdown("---")
-st.sidebar.subheader("⚡ 1-Click Post-5th Nov Scheduler")
+# ⚡ 1-CLICK POST-5th NOV SCHEDULER (Only Available for Admin)
+if st.session_state.is_admin:
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("⚡ 1-Click Post-5th Nov Scheduler")
 
-if st.sidebar.button("🎲 Execute Standard Shift Rotation"):
-    shift_rotation_map = {
-        "6:00 AM – 3:00 PM": "10:00 AM – 7:00 PM",
-        "10:00 AM – 7:00 PM": "2:00 PM – 11:00 PM",
-        "2:00 PM – 11:00 PM": "10:00 PM – 7:00 AM",
-        "10:00 PM – 7:00 AM": "6:00 AM – 3:00 PM"
-    }
+    if st.sidebar.button("🎲 Execute Standard Shift Rotation"):
+        shift_rotation_map = {
+            "6:00 AM – 3:00 PM": "10:00 AM – 7:00 PM",
+            "10:00 AM – 7:00 PM": "2:00 PM – 11:00 PM",
+            "2:00 PM – 11:00 PM": "10:00 PM – 7:00 AM",
+            "10:00 PM – 7:00 AM": "6:00 AM – 3:00 PM"
+        }
 
-    shift_to_off_map = {
-        "6:00 AM – 3:00 PM": "Tuesday",
-        "10:00 AM – 7:00 PM": "Sunday",
-        "2:00 PM – 11:00 PM": "Thursday",
-        "10:00 PM – 7:00 AM": "Saturday"
-    }
+        shift_to_off_map = {
+            "6:00 AM – 3:00 PM": "Tuesday",
+            "10:00 AM – 7:00 PM": "Sunday",
+            "2:00 PM – 11:00 PM": "Thursday",
+            "10:00 PM – 7:00 AM": "Saturday"
+        }
 
-    for idx, row in st.session_state.roster.iterrows():
-        current_s = row["Regular Shift"]
-        new_s = shift_rotation_map.get(current_s, "10:00 AM – 7:00 PM")
-        new_off = shift_to_off_map.get(new_s, "Sunday")
+        for idx, row in st.session_state.roster.iterrows():
+            current_s = row["Regular Shift"]
+            new_s = shift_rotation_map.get(current_s, "10:00 AM – 7:00 PM")
+            new_off = shift_to_off_map.get(new_s, "Sunday")
 
-        st.session_state.roster.at[idx, "Regular Shift"] = new_s
-        st.session_state.roster.at[idx, "Weekly Off"] = new_off
+            st.session_state.roster.at[idx, "Regular Shift"] = new_s
+            st.session_state.roster.at[idx, "Weekly Off"] = new_off
 
-        if new_off.strip().lower() == selected_day_name.strip().lower():
-            st.session_state.roster.at[idx, "Status"] = "Weekly Off"
-            st.session_state.roster.at[idx, "Replacement"] = "None"
-        else:
-            st.session_state.roster.at[idx, "Status"] = "Working"
+            if new_off.strip().lower() == selected_day_name.strip().lower():
+                st.session_state.roster.at[idx, "Status"] = "Weekly Off"
+                st.session_state.roster.at[idx, "Replacement"] = "None"
+            else:
+                st.session_state.roster.at[idx, "Status"] = "Working"
 
-    st.sidebar.success("✅ Shifts successfully rotated!")
+        st.sidebar.success("✅ Shifts successfully rotated!")
 
 # --- SECURE INDIVIDUAL OVERRIDE REQUEST ---
 st.sidebar.markdown("---")
@@ -143,7 +180,6 @@ status_options = ["Working", "Weekly Off", "On Leave", "Shift Swapped"]
 default_status_idx = status_options.index(current_status) if current_status in status_options else 0
 requested_status = st.sidebar.selectbox("Requested Duty Status", status_options, index=default_status_idx)
 
-# Active working employees list for replacement selection
 working_employees = list(st.session_state.roster[st.session_state.roster["Status"] == "Working"]["Employee"])
 assigned_replacement = st.sidebar.selectbox("Assign Replacement Coverage", ["None"] + working_employees)
 
@@ -158,9 +194,9 @@ if st.sidebar.button("📩 Submit Change Request for Approval"):
     }
     st.session_state.pending_requests.append(req_data)
     
-    # Send instant private email alert to Jashika & Yogesh Sir
+    # Trigger private email alert to Jashika & Yogesh Sir
     send_admin_alert_email(req_data)
-    st.sidebar.warning(f"⚠️ Request submitted! Alert email sent to Jashika & Yogesh Sir for approval.")
+    st.sidebar.success(f"✅ Request submitted successfully! It is pending approval from Admins.")
 
 # --- DASHBOARD METRICS & TABLE ---
 col1, col2, col3 = st.columns(3)
@@ -176,14 +212,12 @@ with col3:
 
 st.markdown("---")
 
-# PRIVATE SECURITY APPROVAL PANEL
-if len(st.session_state.pending_requests) > 0:
-    st.error("🚨 Pending Shift Change Approvals Required!")
-    st.subheader("🛡️ Admin Approval Queue (Jashika / Yogesh Sir)")
-    
-    admin_pin = st.text_input("Enter Admin Authorization Key to Manage Approvals:", type="password")
-    
-    if admin_pin == "admin123":
+# STRICT ADMIN-ONLY APPROVAL PANEL (WILL ONLY SHOW WHEN IS_ADMIN IS TRUE)
+if st.session_state.is_admin:
+    if len(st.session_state.pending_requests) > 0:
+        st.error("🚨 Pending Shift Change Approvals Required!")
+        st.subheader("🛡️ Admin Approval Queue (Jashika / Yogesh Sir)")
+        
         for idx, req in enumerate(st.session_state.pending_requests):
             col_a, col_b, col_c = st.columns([3, 1, 1])
             with col_a:
@@ -203,10 +237,7 @@ if len(st.session_state.pending_requests) > 0:
                     st.session_state.pending_requests.pop(idx)
                     st.warning("Change request rejected.")
                     st.rerun()
-    else:
-        st.info("🔒 Enter Admin Key (`admin123`) above to approve or reject pending requests.")
-
-st.markdown("---")
+        st.markdown("---")
 
 st.subheader("📊 Live Shift Roster Status")
 st.dataframe(st.session_state.roster[["Employee", "Email", "Regular Shift", "Weekly Off", "Status", "Replacement"]], use_container_width=True)
@@ -232,7 +263,6 @@ notification_text = f"**Daily Shift Operational Summary ({formatted_date_str}):*
 st.text_area("Individual Employee Shift Broadcast Preview:", value=notification_text, height=240)
 
 # --- DISPATCH LOGIC FUNCTIONS ---
-
 def send_emails_to_all(summary_text, roster_df, date_str):
     sender_email = "jashikasahu862@gmail.com"
     app_password = "ezxg vper qgqa xvpb"
@@ -301,23 +331,24 @@ def send_to_teams(table_md, date_str):
     except Exception as e:
         return False, str(e)
 
-# --- DISPATCH BUTTONS ---
-col_btn1, col_btn2 = st.columns(2)
+# DISPATCH BUTTONS (ADMIN ONLY)
+if st.session_state.is_admin:
+    col_btn1, col_btn2 = st.columns(2)
 
-with col_btn1:
-    if st.button("📧 Dispatch via Email Broadcast"):
-        with st.spinner("Dispatching emails..."):
-            success, msg = send_emails_to_all(notification_text, st.session_state.roster, formatted_date_str)
-            if success:
-                st.success(f"✅ {msg}")
-            else:
-                st.error(f"❌ Email Error: {msg}")
+    with col_btn1:
+        if st.button("📧 Dispatch via Email Broadcast"):
+            with st.spinner("Dispatching emails..."):
+                success, msg = send_emails_to_all(notification_text, st.session_state.roster, formatted_date_str)
+                if success:
+                    st.success(f"✅ {msg}")
+                else:
+                    st.error(f"❌ Email Error: {msg}")
 
-with col_btn2:
-    if st.button("💬 Dispatch to MS Teams / Webhook"):
-        with st.spinner("Sending table to MS Teams..."):
-            success, msg = send_to_teams(notification_text, formatted_date_str)
-            if success:
-                st.success(f"✅ {msg}")
-            else:
-                st.error(f"❌ Teams Error: {msg}")
+    with col_btn2:
+        if st.button("💬 Dispatch to MS Teams / Webhook"):
+            with st.spinner("Sending table to MS Teams..."):
+                success, msg = send_to_teams(notification_text, formatted_date_str)
+                if success:
+                    st.success(f"✅ {msg}")
+                else:
+                    st.error(f"❌ Teams Error: {msg}")
