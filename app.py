@@ -51,7 +51,7 @@ if 'pending_requests' not in st.session_state:
 if 'audit_logs' not in st.session_state:
     st.session_state.audit_logs = []
 
-# Cross-Device Parameter Logic for Mobile Browsers
+# Secret URL Parameter Logic for Jashika & Yogesh
 try:
     params = st.query_params
     if params.get("admin") == "true":
@@ -63,7 +63,7 @@ except Exception:
 st.title("📅 Enterprise Roster Management & Secure Dispatch System")
 st.write("Automated shift tracking, rotation engine, approval workflow, and multi-channel notification console.")
 
-# --- DISPATCH / ALERT HELPER FUNCTIONS ---
+# Helper Alert Email to Jashika & Yogesh
 def send_admin_alert_email(req_data):
     sender_email = "jashikasahu862@gmail.com"
     app_password = "ezxg vper qgqa xvpb"
@@ -137,23 +137,20 @@ Roster Management Team"""
 # --- SIDEBAR CONTROLS ---
 st.sidebar.header("🎯 Shift Adjustment Controls")
 
-# SIDEBAR ADMIN UNLOCK & PASSKEY CHANGE SYSTEM
-st.sidebar.markdown("---")
-admin_key_input = st.sidebar.text_input("🔑 Admin Unlock Key", type="password", help="Enter admin key to unlock approval queue")
-
-if admin_key_input == st.session_state.admin_password or st.session_state.is_admin:
-    st.session_state.is_admin = True
+# ADMIN CONTROLS ONLY VISIBLE TO AUTHORIZED ADMINS
+if st.session_state.is_admin:
+    st.sidebar.markdown("---")
     st.sidebar.success("🔓 Admin Approval Mode Active")
     
     with st.sidebar.expander("⚙️ Change Admin Passkey"):
-        new_pass = st.text_input("Enter New Passkey", type="password")
-        confirm_pass = st.text_input("Confirm New Passkey", type="password")
-        if st.button("Update Passkey"):
+        new_pass = st.sidebar.text_input("Enter New Passkey", type="password")
+        confirm_pass = st.sidebar.text_input("Confirm New Passkey", type="password")
+        if st.sidebar.button("Update Passkey"):
             if new_pass != "" and new_pass == confirm_pass:
                 st.session_state.admin_password = new_pass
-                st.success("✅ Passkey updated successfully!")
+                st.sidebar.success("✅ Passkey updated successfully!")
             else:
-                st.error("❌ Passwords do not match or empty.")
+                st.sidebar.error("❌ Passwords do not match or empty.")
 
 st.sidebar.markdown("---")
 selected_date = st.sidebar.date_input("Select Roster Date", datetime.now())
@@ -171,48 +168,49 @@ if 'last_selected_date' not in st.session_state or st.session_state.last_selecte
             if st.session_state.roster.at[idx, "Status"] == "Weekly Off":
                 st.session_state.roster.at[idx, "Status"] = "Working"
 
-# ⚡ 1-CLICK POST-5th NOV SCHEDULER (DEEPAK FIXED IN GENERAL SHIFT)
-st.sidebar.markdown("---")
-st.sidebar.subheader("⚡ 1-Click Post-5th Nov Scheduler")
+# ⚡ 1-CLICK POST-5th NOV SCHEDULER (ADMIN ONLY)
+if st.session_state.is_admin:
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("⚡ 1-Click Post-5th Nov Scheduler")
 
-if st.sidebar.button("🎲 Execute Standard Shift Rotation"):
-    shift_rotation_map = {
-        "6:00 AM – 3:00 PM": "10:00 AM – 7:00 PM",
-        "10:00 AM – 7:00 PM": "2:00 PM – 11:00 PM",
-        "2:00 PM – 11:00 PM": "10:00 PM – 7:00 AM",
-        "10:00 PM – 7:00 AM": "6:00 AM – 3:00 PM"
-    }
+    if st.sidebar.button("🎲 Execute Standard Shift Rotation"):
+        shift_rotation_map = {
+            "6:00 AM – 3:00 PM": "10:00 AM – 7:00 PM",
+            "10:00 AM – 7:00 PM": "2:00 PM – 11:00 PM",
+            "2:00 PM – 11:00 PM": "10:00 PM – 7:00 AM",
+            "10:00 PM – 7:00 AM": "6:00 AM – 3:00 PM"
+        }
 
-    shift_to_off_map = {
-        "6:00 AM – 3:00 PM": "Tuesday",
-        "10:00 AM – 7:00 PM": "Sunday",
-        "2:00 PM – 11:00 PM": "Thursday",
-        "10:00 PM – 7:00 AM": "Saturday"
-    }
+        shift_to_off_map = {
+            "6:00 AM – 3:00 PM": "Tuesday",
+            "10:00 AM – 7:00 PM": "Sunday",
+            "2:00 PM – 11:00 PM": "Thursday",
+            "10:00 PM – 7:00 AM": "Saturday"
+        }
 
-    for idx, row in st.session_state.roster.iterrows():
-        emp_name = row["Employee"]
-        
-        # FIXED RULE FOR DEEPAK
-        if emp_name == "Deepak":
-            st.session_state.roster.at[idx, "Regular Shift"] = "10:00 AM – 7:00 PM"
-            st.session_state.roster.at[idx, "Weekly Off"] = "Sunday"
-            new_off = "Sunday"
-        else:
-            current_s = row["Regular Shift"]
-            new_s = shift_rotation_map.get(current_s, "10:00 AM – 7:00 PM")
-            new_off = shift_to_off_map.get(new_s, "Sunday")
+        for idx, row in st.session_state.roster.iterrows():
+            emp_name = row["Employee"]
+            
+            # FIXED RULE FOR DEEPAK
+            if emp_name == "Deepak":
+                st.session_state.roster.at[idx, "Regular Shift"] = "10:00 AM – 7:00 PM"
+                st.session_state.roster.at[idx, "Weekly Off"] = "Sunday"
+                new_off = "Sunday"
+            else:
+                current_s = row["Regular Shift"]
+                new_s = shift_rotation_map.get(current_s, "10:00 AM – 7:00 PM")
+                new_off = shift_to_off_map.get(new_s, "Sunday")
 
-            st.session_state.roster.at[idx, "Regular Shift"] = new_s
-            st.session_state.roster.at[idx, "Weekly Off"] = new_off
+                st.session_state.roster.at[idx, "Regular Shift"] = new_s
+                st.session_state.roster.at[idx, "Weekly Off"] = new_off
 
-        if new_off.strip().lower() == selected_day_name.strip().lower():
-            st.session_state.roster.at[idx, "Status"] = "Weekly Off"
-            st.session_state.roster.at[idx, "Replacement"] = "None"
-        else:
-            st.session_state.roster.at[idx, "Status"] = "Working"
+            if new_off.strip().lower() == selected_day_name.strip().lower():
+                st.session_state.roster.at[idx, "Status"] = "Weekly Off"
+                st.session_state.roster.at[idx, "Replacement"] = "None"
+            else:
+                st.session_state.roster.at[idx, "Status"] = "Working"
 
-    st.sidebar.success("✅ Shifts rotated! (Deepak fixed in General Shift)")
+        st.sidebar.success("✅ Shifts rotated! (Deepak fixed in General Shift)")
 
 # --- SECURE INDIVIDUAL OVERRIDE REQUEST ---
 st.sidebar.markdown("---")
@@ -268,58 +266,54 @@ with col3:
 
 st.markdown("---")
 
-# APPROVAL QUEUE DISPLAY
-if len(st.session_state.pending_requests) > 0:
+# APPROVAL QUEUE DISPLAY (ONLY VISIBLE TO ADMIN)
+if len(st.session_state.pending_requests) > 0 and st.session_state.is_admin:
     st.error("🚨 Pending Shift Change Approvals Required!")
+    st.subheader("🛡️ Admin Approval Queue (Jashika / Yogesh)")
     
-    if st.session_state.is_admin:
-        st.subheader("🛡️ Admin Approval Queue (Jashika / Yogesh)")
-        for idx, req in enumerate(st.session_state.pending_requests):
-            col_a, col_b, col_c = st.columns([3, 1, 1])
-            with col_a:
-                st.write(f"📌 **{req['Employee']}** requested change for **{req['Date']}** $\rightarrow$ Shift: **{req['Shift']}** | Status: **{req['Status']}** | Replacement: **{req['Replacement']}**")
-            with col_b:
-                if st.button(f"✅ Approve #{idx+1}"):
-                    emp_idx = st.session_state.roster[st.session_state.roster["Employee"] == req['Employee']].index[0]
-                    st.session_state.roster.at[emp_idx, "Regular Shift"] = req['Shift']
-                    st.session_state.roster.at[emp_idx, "Status"] = req['Status']
-                    st.session_state.roster.at[emp_idx, "Replacement"] = req['Replacement']
-                    
-                    # Get Employee Email
-                    emp_email = st.session_state.roster.at[emp_idx, "Email"]
-                    send_employee_decision_email(emp_email, req['Employee'], req['Date'], req['Shift'], "Approved")
-                    
-                    # Audit Log Entry
-                    st.session_state.audit_logs.append({
-                        "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        "Employee": req['Employee'],
-                        "Date": req['Date'],
-                        "Requested Shift": req['Shift'],
-                        "Action": "Approved"
-                    })
+    for idx, req in enumerate(st.session_state.pending_requests):
+        col_a, col_b, col_c = st.columns([3, 1, 1])
+        with col_a:
+            st.write(f"📌 **{req['Employee']}** requested change for **{req['Date']}** $\rightarrow$ Shift: **{req['Shift']}** | Status: **{req['Status']}** | Replacement: **{req['Replacement']}**")
+        with col_b:
+            if st.button(f"✅ Approve #{idx+1}"):
+                emp_idx = st.session_state.roster[st.session_state.roster["Employee"] == req['Employee']].index[0]
+                st.session_state.roster.at[emp_idx, "Regular Shift"] = req['Shift']
+                st.session_state.roster.at[emp_idx, "Status"] = req['Status']
+                st.session_state.roster.at[emp_idx, "Replacement"] = req['Replacement']
+                
+                emp_email = st.session_state.roster.at[emp_idx, "Email"]
+                send_employee_decision_email(emp_email, req['Employee'], req['Date'], req['Shift'], "Approved")
+                
+                st.session_state.audit_logs.append({
+                    "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "Employee": req['Employee'],
+                    "Date": req['Date'],
+                    "Requested Shift": req['Shift'],
+                    "Action": "Approved"
+                })
 
-                    st.session_state.pending_requests.pop(idx)
-                    st.success("Change approved, roster updated, and notification sent to employee!")
-                    st.rerun()
-            with col_c:
-                if st.button(f"❌ Reject #{idx+1}"):
-                    emp_idx = st.session_state.roster[st.session_state.roster["Employee"] == req['Employee']].index[0]
-                    emp_email = st.session_state.roster.at[emp_idx, "Email"]
-                    send_employee_decision_email(emp_email, req['Employee'], req['Date'], req['Shift'], "Rejected")
-                    
-                    # Audit Log Entry
-                    st.session_state.audit_logs.append({
-                        "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        "Employee": req['Employee'],
-                        "Date": req['Date'],
-                        "Requested Shift": req['Shift'],
-                        "Action": "Rejected"
-                    })
+                st.session_state.pending_requests.pop(idx)
+                st.success("Change approved, roster updated, and notification sent to employee!")
+                st.rerun()
+        with col_c:
+            if st.button(f"❌ Reject #{idx+1}"):
+                emp_idx = st.session_state.roster[st.session_state.roster["Employee"] == req['Employee']].index[0]
+                emp_email = st.session_state.roster.at[emp_idx, "Email"]
+                send_employee_decision_email(emp_email, req['Employee'], req['Date'], req['Shift'], "Rejected")
+                
+                st.session_state.audit_logs.append({
+                    "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "Employee": req['Employee'],
+                    "Date": req['Date'],
+                    "Requested Shift": req['Shift'],
+                    "Action": "Rejected"
+                })
 
-                    st.session_state.pending_requests.pop(idx)
-                    st.warning("Change request rejected and notification sent to employee.")
-                    st.rerun()
-        st.markdown("---")
+                st.session_state.pending_requests.pop(idx)
+                st.warning("Change request rejected and notification sent to employee.")
+                st.rerun()
+    st.markdown("---")
 
 st.subheader("📊 Live Shift Roster Status")
 st.dataframe(st.session_state.roster[["Employee", "Email", "Regular Shift", "Weekly Off", "Status", "Replacement"]], use_container_width=True)
