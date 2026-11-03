@@ -35,7 +35,7 @@ url_req_status = query_params.get("req_status")
 url_req_rep = query_params.get("req_rep")
 url_req_date = query_params.get("req_date")
 
-# PERMANENT UPDATED PASSKEY DEFAULT FIX
+# Permanent Passkey Default
 if 'admin_password' not in st.session_state:
     st.session_state.admin_password = "Bmipl@1234"
 
@@ -80,7 +80,51 @@ if 'audit_logs' not in st.session_state:
 st.title("📅 Enterprise Roster Management & Secure Dispatch System")
 st.write("Automated shift tracking, rotation engine, approval workflow, and multi-channel notification console.")
 
-# Helper Functions
+# --- MS TEAMS INTEGRATION FUNCTION ---
+def send_to_teams(table_md, date_str):
+    # MS Teams Channel Webhook / Workflow URL
+    teams_webhook_url = "https://default43b2ab88f668409fba768db3e53453.ae.environment.api.powerplatform.com:443/workflows/..."
+    
+    payload = {
+        "type": "message",
+        "attachments": [
+            {
+                "contentType": "application/vnd.microsoft.card.adaptive",
+                "contentUrl": None,
+                "content": {
+                    "$schema": "http://adaptivecards.io/schemas/adaptivecard.json",
+                    "type": "AdaptiveCard",
+                    "version": "1.2",
+                    "body": [
+                        {
+                            "type": "TextBlock",
+                            "text": f"📋 Daily Shift Schedule Update - {date_str}",
+                            "weight": "Bolder",
+                            "size": "Medium",
+                            "color": "Accent"
+                        },
+                        {
+                            "type": "TextBlock",
+                            "text": table_md,
+                            "wrap": True,
+                            "spacing": "Medium"
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+    
+    try:
+        response = requests.post(teams_webhook_url, json=payload)
+        if response.status_code in [200, 202]:
+            return True, "Successfully posted roster table to MS Teams Channel!"
+        else:
+            return False, f"Failed with status code: {response.status_code}"
+    except Exception as e:
+        return False, str(e)
+
+# OTP Helper Function
 def send_otp_email(target_email, otp):
     sender_email = "jashikasahu862@gmail.com"
     app_password = "ezxg vper qgqa xvpb"
@@ -436,4 +480,9 @@ with col_btn1:
 
 with col_btn2:
     if st.button("💬 Post Summary to MS Teams"):
-        st.info("Teams Webhook integration ready.")
+        with st.spinner("Dispatching shift table to MS Teams Channel..."):
+            success, msg = send_to_teams(markdown_table_str, formatted_date_str)
+            if success:
+                st.success(f"✅ {msg}")
+            else:
+                st.error(f"❌ Teams Dispatch Failed: {msg}")
