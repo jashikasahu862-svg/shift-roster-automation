@@ -22,7 +22,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Authorized Admin Email List
+# Authorized Admin Email List (Yogesh Sir & Jashika)
 ADMIN_EMAILS = ["jashikasahu862@gmail.com", "yogesh@bminfotradegroup.com"]
 APP_URL = "https://shift-roster-automation-nrg8ndrrz2jdtbml6txg4q.streamlit.app"
 
@@ -61,7 +61,7 @@ if 'roster' not in st.session_state:
 if 'pending_requests' not in st.session_state:
     st.session_state.pending_requests = []
 
-# Cross-Laptop Request Capture via Email Link
+# Cross-Laptop Request Capture via Email/Teams Link
 if url_req_emp and url_req_shift:
     incoming_req = {
         "Employee": url_req_emp,
@@ -80,9 +80,68 @@ if 'audit_logs' not in st.session_state:
 st.title("📅 Enterprise Roster Management & Secure Dispatch System")
 st.write("Automated shift tracking, rotation engine, approval workflow, and multi-channel notification console.")
 
-# Helper Functions
+# 1. MS TEAMS APPROVAL ALERT (Send Shift Change Request directly to Teams Chat/Channel)
+def send_teams_approval_alert(req_data):
+    teams_webhook_url = "https://default43b2ab88f668409fba768db3e53453.ae.environment.api.powerplatform.com:443/workflows/..."
+    
+    encoded_emp = urllib.parse.quote(req_data['Employee'])
+    encoded_shift = urllib.parse.quote(req_data['Shift'])
+    encoded_status = urllib.parse.quote(req_data['Status'])
+    encoded_rep = urllib.parse.quote(req_data['Replacement'])
+    encoded_date = urllib.parse.quote(req_data['Date'])
+    
+    direct_approval_url = f"{APP_URL}?admin=true&req_emp={encoded_emp}&req_shift={encoded_shift}&req_status={encoded_status}&req_rep={encoded_rep}&req_date={encoded_date}"
+    
+    payload = {
+        "type": "message",
+        "attachments": [
+            {
+                "contentType": "application/vnd.microsoft.card.adaptive",
+                "contentUrl": None,
+                "content": {
+                    "$schema": "http://adaptivecards.io/schemas/adaptivecard.json",
+                    "type": "AdaptiveCard",
+                    "version": "1.2",
+                    "body": [
+                        {
+                            "type": "TextBlock",
+                            "text": f"🚨 URGENT: Shift Change Request - {req_data['Employee']}",
+                            "weight": "Bolder",
+                            "size": "Medium",
+                            "color": "Attention"
+                        },
+                        {
+                            "type": "FactSet",
+                            "facts": [
+                                {"title": "Employee:", "value": req_data['Employee']},
+                                {"title": "Date:", "value": req_data['Date']},
+                                {"title": "Requested Shift:", "value": req_data['Shift']},
+                                {"title": "Requested Status:", "value": req_data['Status']},
+                                {"title": "Replacement:", "value": req_data['Replacement']}
+                            ]
+                        }
+                    ],
+                    "actions": [
+                        {
+                            "type": "Action.OpenUrl",
+                            "title": "⚡ Open Approval Portal",
+                            "url": direct_approval_url
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+    
+    try:
+        requests.post(teams_webhook_url, json=payload)
+        return True
+    except Exception:
+        return False
+
+# 2. MS TEAMS DAILY ROSTER BROADCAST
 def send_to_teams(table_md, date_str):
-    teams_webhook_url = "https://default43b2ab88f668409fba768db3e53453.ae.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/26/workflows/9f3c19d7fdf84fc89c0fa954c3b94f09/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=BJo0wF-PLQxrspAdVLAU6twdXETH4ld0HKhgl_HloXU"
+    teams_webhook_url = "https://default43b2ab88f668409fba768db3e53453.ae.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/15/workflows/f62465f950a34d75b3948a7d9103ebec/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=iRe5p65jXDJzqAWnU7hndtLcHO3y_lcKJwYNiGCQX24"
     
     payload = {
         "type": "message",
@@ -123,6 +182,7 @@ def send_to_teams(table_md, date_str):
     except Exception as e:
         return False, str(e)
 
+# OTP Helper Function
 def send_otp_email(target_email, otp):
     sender_email = "jashikasahu862@gmail.com"
     app_password = "ezxg vper qgqa xvpb"
@@ -148,6 +208,7 @@ Roster Security Console"""
     except Exception:
         return False
 
+# Email Alert Function
 def send_admin_alert_email(req_data):
     sender_email = "jashikasahu862@gmail.com"
     app_password = "ezxg vper qgqa xvpb"
@@ -363,8 +424,12 @@ if st.sidebar.button("📩 Submit Change Request"):
         "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     }
     st.session_state.pending_requests.append(req_data)
+    
+    # ⚡ Dispatch to both Email AND MS Teams
     send_admin_alert_email(req_data)
-    st.sidebar.success(f"✅ Request submitted! Direct approval alert link sent to Admins via Email.")
+    send_teams_approval_alert(req_data)
+    
+    st.sidebar.success(f"✅ Request submitted! Approval alert sent via Email & MS Teams.")
 
 # Dashboard Metrics
 col1, col2, col3 = st.columns(3)
