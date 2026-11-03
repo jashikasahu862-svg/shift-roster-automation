@@ -5,6 +5,7 @@ import smtplib
 from email.mime.text import MIMEText
 import requests
 import urllib.parse
+import random
 
 # Page Configuration & Professional Styling
 st.set_page_config(
@@ -42,6 +43,9 @@ if 'is_admin' not in st.session_state:
 elif is_admin_from_url:
     st.session_state.is_admin = True
 
+if 'otp_code' not in st.session_state:
+    st.session_state.otp_code = None
+
 if 'roster' not in st.session_state:
     raw_df = pd.DataFrame([
         {"Employee": "Deepak", "Email": "deepak@bminfotradegroup.com", "Regular Shift": "10:00 AM – 7:00 PM", "Weekly Off": "Sunday", "Status": "Working", "Replacement": "None"},
@@ -56,7 +60,7 @@ if 'roster' not in st.session_state:
 if 'pending_requests' not in st.session_state:
     st.session_state.pending_requests = []
 
-# If opened via Email Link with request parameters, inject into session
+# Inject incoming email request params into pending queue
 if url_req_emp and url_req_shift:
     incoming_req = {
         "Employee": url_req_emp,
@@ -76,6 +80,31 @@ st.title("📅 Enterprise Roster Management & Secure Dispatch System")
 st.write("Automated shift tracking, rotation engine, approval workflow, and multi-channel notification console.")
 
 # Helper Functions
+def send_otp_email(target_email, otp):
+    sender_email = "jashikasahu862@gmail.com"
+    app_password = "ezxg vper qgqa xvpb"
+
+    try:
+        server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
+        server.login(sender_email, app_password)
+        body = f"""Hello Admin,
+
+Your Security Password Reset OTP is: {otp}
+
+Enter this OTP in the application sidebar to update your Admin Passkey.
+
+Best regards,
+Roster Security Team"""
+        msg = MIMEText(body)
+        msg['Subject'] = f"🔑 Admin Password Reset OTP: {otp}"
+        msg['From'] = f"Roster Security Console <{sender_email}>"
+        msg['To'] = target_email
+        server.sendmail(sender_email, target_email, msg.as_string())
+        server.close()
+        return True
+    except Exception:
+        return False
+
 def send_admin_alert_email(req_data):
     sender_email = "jashikasahu862@gmail.com"
     app_password = "ezxg vper qgqa xvpb"
@@ -84,7 +113,6 @@ def send_admin_alert_email(req_data):
         server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
         server.login(sender_email, app_password)
         
-        # Build direct approval link containing request payload
         encoded_emp = urllib.parse.quote(req_data['Employee'])
         encoded_shift = urllib.parse.quote(req_data['Shift'])
         encoded_status = urllib.parse.quote(req_data['Status'])
@@ -103,7 +131,7 @@ A new shift change request requires your approval:
 - Requested Status: {req_data['Status']}
 - Replacement Coverage: {req_data['Replacement']}
 
-📲 Click below link to open approval queue directly on Laptop/Phone:
+📲 Click below link to open approval queue directly on Mobile/PC:
 {direct_approval_url}
 
 Regards,
@@ -155,11 +183,12 @@ Operations Team"""
 # --- SIDEBAR CONTROLS ---
 st.sidebar.header("🎯 Operational Controls")
 
-# Strict Dual-Factor Admin Authentication
+# Admin Authentication & Forgot Password Section
 if not st.session_state.is_admin:
     with st.sidebar.expander("🔒 Admin Portal Access"):
         admin_email_input = st.text_input("Admin Email Address")
         pass_key = st.text_input("Passkey", type="password")
+        
         if st.button("Authenticate Admin"):
             if admin_email_input.strip().lower() in [e.lower() for e in ADMIN_EMAILS] and pass_key == st.session_state.admin_password:
                 st.session_state.is_admin = True
@@ -167,6 +196,33 @@ if not st.session_state.is_admin:
                 st.rerun()
             else:
                 st.error("Access Denied: Invalid Admin Email or Passkey!")
+        
+        st.markdown("---")
+        st.write("❓ **Forgot Passkey?**")
+        reset_email = st.text_input("Enter Email to Receive OTP")
+        if st.button("Send Reset OTP"):
+            if reset_email.strip().lower() in [e.lower() for e in ADMIN_EMAILS]:
+                generated_otp = str(random.randint(100000, 999999))
+                st.session_state.otp_code = generated_otp
+                if send_otp_email(reset_email.strip(), generated_otp):
+                    st.success(f"✅ OTP sent to {reset_email}!")
+                else:
+                    st.error("❌ Email sending failed.")
+            else:
+                st.error("❌ Unauthorized email address.")
+        
+        if st.session_state.otp_code:
+            entered_otp = st.text_input("Enter 6-Digit OTP")
+            new_forgot_pass = st.text_input("New Passkey", type="password")
+            if st.button("Reset & Login"):
+                if entered_otp == st.session_state.otp_code and new_forgot_pass != "":
+                    st.session_state.admin_password = new_forgot_pass
+                    st.session_state.is_admin = True
+                    st.session_state.otp_code = None
+                    st.success("✅ Passkey updated successfully!")
+                    st.rerun()
+                else:
+                    st.error("❌ Invalid OTP or empty passkey.")
 else:
     st.sidebar.success("🔓 Admin Mode Active (Jashika / Yogesh)")
     with st.sidebar.expander("⚙️ Security Options"):
@@ -281,7 +337,7 @@ with col3:
 
 st.markdown("---")
 
-# Approval Queue Display (Synced Across Devices via Link Parameters)
+# Approval Queue Display
 if len(st.session_state.pending_requests) > 0:
     st.error("🚨 Pending Shift Change Approvals Required!")
     if st.session_state.is_admin:
