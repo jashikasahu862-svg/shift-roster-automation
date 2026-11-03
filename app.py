@@ -17,23 +17,26 @@ st.markdown("""
     .main-title { font-size: 28px; font-weight: 700; color: #0F172A; margin-bottom: 5px; }
     .sub-title { font-size: 14px; color: #475569; margin-bottom: 20px; }
     .stButton>button { width: 100%; border-radius: 6px; font-weight: 600; }
-    .admin-badge { background-color: #0284C7; color: white; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; }
     </style>
 """, unsafe_allow_html=True)
 
-# Admin / Approver Email IDs
+# Admin Email Configuration
 ADMIN_EMAILS = ["jashikasahu862@gmail.com", "yogesh@bminfotradegroup.com"]
 APP_URL = "https://shift-roster-automation-nrg8ndrrz2jdtbml6txg4q.streamlit.app"
 
-# Session State Initializations
+# Query Parameter Handling for Mobile Sync (Run first)
+query_params = st.query_params
+is_admin_from_url = query_params.get("admin") == "true"
+
 if 'admin_password' not in st.session_state:
     st.session_state.admin_password = "admin123"
 
 if 'is_admin' not in st.session_state:
-    st.session_state.is_admin = False
+    st.session_state.is_admin = is_admin_from_url
+elif is_admin_from_url:
+    st.session_state.is_admin = True
 
 if 'roster' not in st.session_state:
-    # 💡 Apne employees ki Real Emails yahan update kar sakti hain
     raw_df = pd.DataFrame([
         {"Employee": "Deepak", "Email": "deepak@bminfotradegroup.com", "Regular Shift": "10:00 AM – 7:00 PM", "Weekly Off": "Sunday", "Status": "Working", "Replacement": "None"},
         {"Employee": "Jashika", "Email": "jashika.sahu@bminfotradegroup.com", "Regular Shift": "2:00 PM – 11:00 PM", "Weekly Off": "Thursday", "Status": "Working", "Replacement": "None"},
@@ -50,19 +53,11 @@ if 'pending_requests' not in st.session_state:
 if 'audit_logs' not in st.session_state:
     st.session_state.audit_logs = []
 
-# Secret URL Parameter Logic for Instant Unlock
-try:
-    params = st.query_params
-    if params.get("admin") == "true":
-        st.session_state.is_admin = True
-except Exception:
-    pass
-
-# Header Section
+# Main Header
 st.title("📅 Enterprise Roster Management & Secure Dispatch System")
 st.write("Automated shift tracking, rotation engine, approval workflow, and multi-channel notification console.")
 
-# Email Helpers
+# Helper Functions
 def send_admin_alert_email(req_data):
     sender_email = "jashikasahu862@gmail.com"
     app_password = "ezxg vper qgqa xvpb"
@@ -82,7 +77,7 @@ A new shift change request requires your approval:
 - Requested Status: {req_data['Status']}
 - Replacement Coverage: {req_data['Replacement']}
 
-📲 Click below link to review and Approve/Reject:
+📲 Click below link to review and Approve/Reject on Mobile/PC:
 {direct_approval_url}
 
 Regards,
@@ -134,7 +129,7 @@ Operations Team"""
 # --- SIDEBAR CONTROLS ---
 st.sidebar.header("🎯 Operational Controls")
 
-# ADMIN LOGIN PANEL (Hidden for Normal Users)
+# Admin Login Section
 if not st.session_state.is_admin:
     with st.sidebar.expander("🔒 Admin Portal Unlock"):
         pass_key = st.text_input("Enter Passkey", type="password")
@@ -176,7 +171,7 @@ if 'last_selected_date' not in st.session_state or st.session_state.last_selecte
             if st.session_state.roster.at[idx, "Status"] == "Weekly Off":
                 st.session_state.roster.at[idx, "Status"] = "Working"
 
-# ⚡ SHIFT ROTATION (ADMIN ONLY)
+# Shift Rotation Engine (Admin Only)
 if st.session_state.is_admin:
     st.sidebar.markdown("---")
     st.sidebar.subheader("⚡ Shift Rotation Engine")
@@ -198,8 +193,6 @@ if st.session_state.is_admin:
 
         for idx, row in st.session_state.roster.iterrows():
             emp_name = row["Employee"]
-            
-            # FIXED RULE FOR DEEPAK
             if emp_name == "Deepak":
                 st.session_state.roster.at[idx, "Regular Shift"] = "10:00 AM – 7:00 PM"
                 st.session_state.roster.at[idx, "Weekly Off"] = "Sunday"
@@ -220,7 +213,7 @@ if st.session_state.is_admin:
 
         st.sidebar.success("✅ Roster updated! (Deepak retained in General Shift)")
 
-# --- EMPLOYEE SHIFT CHANGE FORM ---
+# Employee Request Form
 st.sidebar.markdown("---")
 st.sidebar.subheader("👤 Submit Shift Override Request")
 
@@ -252,7 +245,7 @@ if st.sidebar.button("📩 Submit Change Request"):
     send_admin_alert_email(req_data)
     st.sidebar.success(f"✅ Request submitted! Notification sent to Admins.")
 
-# --- MAIN DASHBOARD METRICS ---
+# Dashboard Metrics
 col1, col2, col3 = st.columns(3)
 working_cnt = len(st.session_state.roster[st.session_state.roster["Status"] == "Working"])
 off_cnt = len(st.session_state.roster[st.session_state.roster["Status"] != "Working"])
@@ -266,58 +259,58 @@ with col3:
 
 st.markdown("---")
 
-# APPROVAL QUEUE (ONLY VISIBLE TO LOGGED IN ADMIN)
-if len(st.session_state.pending_requests) > 0 and st.session_state.is_admin:
+# ALWAYS SHOW APPROVAL QUEUE IF ADMIN (EVEN ON MOBILE)
+if len(st.session_state.pending_requests) > 0:
     st.error("🚨 Pending Shift Change Approvals Required!")
-    st.subheader("🛡️ Admin Approval Queue (Jashika / Yogesh)")
-    
-    for idx, req in enumerate(st.session_state.pending_requests):
-        col_a, col_b, col_c = st.columns([3, 1, 1])
-        with col_a:
-            st.write(f"📌 **{req['Employee']}** requested change for **{req['Date']}** $\rightarrow$ Shift: **{req['Shift']}** | Status: **{req['Status']}** | Replacement: **{req['Replacement']}**")
-        with col_b:
-            if st.button(f"✅ Approve #{idx+1}"):
-                emp_idx = st.session_state.roster[st.session_state.roster["Employee"] == req['Employee']].index[0]
-                st.session_state.roster.at[emp_idx, "Regular Shift"] = req['Shift']
-                st.session_state.roster.at[emp_idx, "Status"] = req['Status']
-                st.session_state.roster.at[emp_idx, "Replacement"] = req['Replacement']
-                
-                emp_email = st.session_state.roster.at[emp_idx, "Email"]
-                send_employee_decision_email(emp_email, req['Employee'], req['Date'], req['Shift'], "Approved")
-                
-                st.session_state.audit_logs.append({
-                    "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "Employee": req['Employee'],
-                    "Date": req['Date'],
-                    "Requested Shift": req['Shift'],
-                    "Action": "Approved"
-                })
-                st.session_state.pending_requests.pop(idx)
-                st.success("Approved & employee notified!")
-                st.rerun()
-        with col_c:
-            if st.button(f"❌ Reject #{idx+1}"):
-                emp_idx = st.session_state.roster[st.session_state.roster["Employee"] == req['Employee']].index[0]
-                emp_email = st.session_state.roster.at[emp_idx, "Email"]
-                send_employee_decision_email(emp_email, req['Employee'], req['Date'], req['Shift'], "Rejected")
-                
-                st.session_state.audit_logs.append({
-                    "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "Employee": req['Employee'],
-                    "Date": req['Date'],
-                    "Requested Shift": req['Shift'],
-                    "Action": "Rejected"
-                })
-                st.session_state.pending_requests.pop(idx)
-                st.warning("Rejected & employee notified.")
-                st.rerun()
-    st.markdown("---")
+    if st.session_state.is_admin:
+        st.subheader("🛡️ Admin Approval Queue (Jashika / Yogesh)")
+        for idx, req in enumerate(st.session_state.pending_requests):
+            col_a, col_b, col_c = st.columns([3, 1, 1])
+            with col_a:
+                st.write(f"📌 **{req['Employee']}** requested change for **{req['Date']}** $\rightarrow$ Shift: **{req['Shift']}** | Status: **{req['Status']}** | Replacement: **{req['Replacement']}**")
+            with col_b:
+                if st.button(f"✅ Approve #{idx+1}"):
+                    emp_idx = st.session_state.roster[st.session_state.roster["Employee"] == req['Employee']].index[0]
+                    st.session_state.roster.at[emp_idx, "Regular Shift"] = req['Shift']
+                    st.session_state.roster.at[emp_idx, "Status"] = req['Status']
+                    st.session_state.roster.at[emp_idx, "Replacement"] = req['Replacement']
+                    
+                    emp_email = st.session_state.roster.at[emp_idx, "Email"]
+                    send_employee_decision_email(emp_email, req['Employee'], req['Date'], req['Shift'], "Approved")
+                    
+                    st.session_state.audit_logs.append({
+                        "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "Employee": req['Employee'],
+                        "Date": req['Date'],
+                        "Requested Shift": req['Shift'],
+                        "Action": "Approved"
+                    })
+                    st.session_state.pending_requests.pop(idx)
+                    st.success("Approved & employee notified!")
+                    st.rerun()
+            with col_c:
+                if st.button(f"❌ Reject #{idx+1}"):
+                    emp_idx = st.session_state.roster[st.session_state.roster["Employee"] == req['Employee']].index[0]
+                    emp_email = st.session_state.roster.at[emp_idx, "Email"]
+                    send_employee_decision_email(emp_email, req['Employee'], req['Date'], req['Shift'], "Rejected")
+                    
+                    st.session_state.audit_logs.append({
+                        "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "Employee": req['Employee'],
+                        "Date": req['Date'],
+                        "Requested Shift": req['Shift'],
+                        "Action": "Rejected"
+                    })
+                    st.session_state.pending_requests.pop(idx)
+                    st.warning("Rejected & employee notified.")
+                    st.rerun()
+        st.markdown("---")
 
-# LIVE SHIFT ROSTER
+# Roster Table
 st.subheader("📊 Live Shift Roster Status")
 st.dataframe(st.session_state.roster[["Employee", "Email", "Regular Shift", "Weekly Off", "Status", "Replacement"]], use_container_width=True)
 
-# EXPORT BUTTON (ADMIN ONLY)
+# Export (Admin Only)
 if st.session_state.is_admin:
     csv_data = st.session_state.roster.to_csv(index=False).encode('utf-8')
     st.download_button(
@@ -327,7 +320,7 @@ if st.session_state.is_admin:
         mime='text/csv'
     )
 
-# AUDIT LOGS (ADMIN ONLY)
+# Audit Logs (Admin Only)
 if st.session_state.is_admin and len(st.session_state.audit_logs) > 0:
     st.markdown("---")
     st.subheader("📜 Operational Audit Logs")
@@ -335,9 +328,8 @@ if st.session_state.is_admin and len(st.session_state.audit_logs) > 0:
 
 st.markdown("---")
 
-# BROADCAST & DISPATCH
+# Broadcast Console
 st.subheader("📢 Shift Schedule Dispatch Console")
-
 table_rows = [f"| **{row['Employee']}** | {row['Regular Shift']} | {row['Status']} | {row['Replacement']} |" for _, row in st.session_state.roster.iterrows()]
 table_header = "| Employee | Shift Timing | Duty Status | Coverage |\n| :--- | :--- | :--- | :--- |"
 markdown_table_str = table_header + "\n" + "\n".join(table_rows)
@@ -346,7 +338,6 @@ notification_text = f"**Daily Shift Operational Summary ({formatted_date_str}):*
 st.text_area("Broadcast Message Preview:", value=notification_text, height=220)
 
 col_btn1, col_btn2 = st.columns(2)
-
 with col_btn1:
     if st.button("📧 Broadcast Roster via Email"):
         with st.spinner("Dispatching broadcast..."):
