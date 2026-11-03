@@ -35,8 +35,9 @@ url_req_status = query_params.get("req_status")
 url_req_rep = query_params.get("req_rep")
 url_req_date = query_params.get("req_date")
 
+# PERMANENT UPDATED PASSKEY DEFAULT FIX
 if 'admin_password' not in st.session_state:
-    st.session_state.admin_password = "admin123"
+    st.session_state.admin_password = "Bmipl@1234"
 
 if 'is_admin' not in st.session_state:
     st.session_state.is_admin = is_admin_from_url
@@ -190,7 +191,7 @@ if not st.session_state.is_admin:
         pass_key = st.text_input("Passkey", type="password")
         
         if st.button("Authenticate Admin"):
-            if admin_email_input.strip().lower() in [e.lower() for e in ADMIN_EMAILS] and pass_key == st.session_state.admin_password:
+            if admin_email_input.strip().lower() in [e.lower() for e in ADMIN_EMAILS] and pass_key.strip() == st.session_state.admin_password:
                 st.session_state.is_admin = True
                 st.success("Admin Session Activated")
                 st.rerun()
