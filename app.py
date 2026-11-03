@@ -83,7 +83,7 @@ st.write("Automated shift tracking, rotation engine, approval workflow, and mult
 # --- MS TEAMS INTEGRATION FUNCTION ---
 def send_to_teams(table_md, date_str):
     # MS Teams Channel Webhook / Workflow URL
-    teams_webhook_url = "https://default43b2ab88f668409fba768db3e53453.ae.environment.api.powerplatform.com:443/workflows/..."
+    teams_webhook_url = "https://default43b2ab88f668409fba768db3e53453.ae.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/29/workflows/7bf4f82880a148bba97910c406fb6ce1/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=INTZuCCCLMEhjB1OV9ps1_jlfqwUkBt9cmEicntRCLM"
     
     payload = {
         "type": "message",
