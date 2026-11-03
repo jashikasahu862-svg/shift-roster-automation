@@ -35,7 +35,7 @@ url_req_status = query_params.get("req_status")
 url_req_rep = query_params.get("req_rep")
 url_req_date = query_params.get("req_date")
 
-# Permanent Passkey Default
+# Permanent Passkey State
 if 'admin_password' not in st.session_state:
     st.session_state.admin_password = "Bmipl@1234"
 
@@ -61,7 +61,7 @@ if 'roster' not in st.session_state:
 if 'pending_requests' not in st.session_state:
     st.session_state.pending_requests = []
 
-# Inject incoming email request params into pending queue
+# Cross-Laptop Request Capture via Email Link
 if url_req_emp and url_req_shift:
     incoming_req = {
         "Employee": url_req_emp,
@@ -80,10 +80,9 @@ if 'audit_logs' not in st.session_state:
 st.title("📅 Enterprise Roster Management & Secure Dispatch System")
 st.write("Automated shift tracking, rotation engine, approval workflow, and multi-channel notification console.")
 
-# --- MS TEAMS INTEGRATION FUNCTION ---
+# Helper Functions
 def send_to_teams(table_md, date_str):
-    # MS Teams Channel Webhook / Workflow URL
-    teams_webhook_url = "https://default43b2ab88f668409fba768db3e53453.ae.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/29/workflows/7bf4f82880a148bba97910c406fb6ce1/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=INTZuCCCLMEhjB1OV9ps1_jlfqwUkBt9cmEicntRCLM"
+    teams_webhook_url = "https://default43b2ab88f668409fba768db3e53453.ae.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/26/workflows/9f3c19d7fdf84fc89c0fa954c3b94f09/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=BJo0wF-PLQxrspAdVLAU6twdXETH4ld0HKhgl_HloXU"
     
     payload = {
         "type": "message",
@@ -124,7 +123,6 @@ def send_to_teams(table_md, date_str):
     except Exception as e:
         return False, str(e)
 
-# OTP Helper Function
 def send_otp_email(target_email, otp):
     sender_email = "jashikasahu862@gmail.com"
     app_password = "ezxg vper qgqa xvpb"
@@ -134,12 +132,12 @@ def send_otp_email(target_email, otp):
         server.login(sender_email, app_password)
         body = f"""Hello Admin,
 
-Your Security Password Reset OTP is: {otp}
+Your Password Reset OTP is: {otp}
 
-Enter this OTP in the application sidebar to update your Admin Passkey.
+Use this OTP in the application sidebar to update your Admin Passkey.
 
 Best regards,
-Roster Security Team"""
+Roster Security Console"""
         msg = MIMEText(body)
         msg['Subject'] = f"🔑 Admin Password Reset OTP: {otp}"
         msg['From'] = f"Roster Security Console <{sender_email}>"
@@ -168,7 +166,7 @@ def send_admin_alert_email(req_data):
         
         body = f"""Hello Admin,
 
-A new shift change request requires your approval:
+A new shift change request has been submitted by {req_data['Employee']}:
 
 - Employee: {req_data['Employee']}
 - Date: {req_data['Date']}
@@ -176,7 +174,7 @@ A new shift change request requires your approval:
 - Requested Status: {req_data['Status']}
 - Replacement Coverage: {req_data['Replacement']}
 
-📲 Click below link to open approval queue directly on Mobile/PC:
+📲 Click below link to review and Approve/Reject directly on your Laptop/Phone:
 {direct_approval_url}
 
 Regards,
@@ -228,7 +226,7 @@ Operations Team"""
 # --- SIDEBAR CONTROLS ---
 st.sidebar.header("🎯 Operational Controls")
 
-# Admin Authentication & Forgot Password Section
+# Admin Auth & Password Management
 if not st.session_state.is_admin:
     with st.sidebar.expander("🔒 Admin Portal Access"):
         admin_email_input = st.text_input("Admin Email Address")
@@ -366,7 +364,7 @@ if st.sidebar.button("📩 Submit Change Request"):
     }
     st.session_state.pending_requests.append(req_data)
     send_admin_alert_email(req_data)
-    st.sidebar.success(f"✅ Request submitted! Direct approval alert sent to Admins.")
+    st.sidebar.success(f"✅ Request submitted! Direct approval alert link sent to Admins via Email.")
 
 # Dashboard Metrics
 col1, col2, col3 = st.columns(3)
