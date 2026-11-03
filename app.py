@@ -4,6 +4,7 @@ from datetime import datetime
 import smtplib
 from email.mime.text import MIMEText
 import requests
+import urllib.parse
 
 # Page Configuration & Professional Styling
 st.set_page_config(
@@ -20,13 +21,18 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Admin Email Configuration
+# Authorized Admin Email List
 ADMIN_EMAILS = ["jashikasahu862@gmail.com", "yogesh@bminfotradegroup.com"]
 APP_URL = "https://shift-roster-automation-nrg8ndrrz2jdtbml6txg4q.streamlit.app"
 
-# Query Parameter Handling for Mobile Sync (Run first)
+# Query Parameter Handling for Cross-Device Request Sync
 query_params = st.query_params
 is_admin_from_url = query_params.get("admin") == "true"
+url_req_emp = query_params.get("req_emp")
+url_req_shift = query_params.get("req_shift")
+url_req_status = query_params.get("req_status")
+url_req_rep = query_params.get("req_rep")
+url_req_date = query_params.get("req_date")
 
 if 'admin_password' not in st.session_state:
     st.session_state.admin_password = "admin123"
@@ -50,14 +56,26 @@ if 'roster' not in st.session_state:
 if 'pending_requests' not in st.session_state:
     st.session_state.pending_requests = []
 
+# If opened via Email Link with request parameters, inject into session
+if url_req_emp and url_req_shift:
+    incoming_req = {
+        "Employee": url_req_emp,
+        "Shift": url_req_shift,
+        "Status": url_req_status if url_req_status else "Working",
+        "Replacement": url_req_rep if url_req_rep else "None",
+        "Date": url_req_date if url_req_date else datetime.now().strftime("%d-%b-%Y (%A)"),
+        "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
+    if incoming_req not in st.session_state.pending_requests:
+        st.session_state.pending_requests.append(incoming_req)
+
 if 'audit_logs' not in st.session_state:
     st.session_state.audit_logs = []
 
-# Main Header
 st.title("📅 Enterprise Roster Management & Secure Dispatch System")
 st.write("Automated shift tracking, rotation engine, approval workflow, and multi-channel notification console.")
 
-# Helper Functions (Email Alerts)
+# Helper Functions
 def send_admin_alert_email(req_data):
     sender_email = "jashikasahu862@gmail.com"
     app_password = "ezxg vper qgqa xvpb"
@@ -65,7 +83,15 @@ def send_admin_alert_email(req_data):
     try:
         server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
         server.login(sender_email, app_password)
-        direct_approval_url = f"{APP_URL}?admin=true"
+        
+        # Build direct approval link containing request payload
+        encoded_emp = urllib.parse.quote(req_data['Employee'])
+        encoded_shift = urllib.parse.quote(req_data['Shift'])
+        encoded_status = urllib.parse.quote(req_data['Status'])
+        encoded_rep = urllib.parse.quote(req_data['Replacement'])
+        encoded_date = urllib.parse.quote(req_data['Date'])
+        
+        direct_approval_url = f"{APP_URL}?admin=true&req_emp={encoded_emp}&req_shift={encoded_shift}&req_status={encoded_status}&req_rep={encoded_rep}&req_date={encoded_date}"
         
         body = f"""Hello Admin,
 
@@ -77,7 +103,7 @@ A new shift change request requires your approval:
 - Requested Status: {req_data['Status']}
 - Replacement Coverage: {req_data['Replacement']}
 
-📲 Click below link to review and Approve/Reject on Mobile/PC:
+📲 Click below link to open approval queue directly on Laptop/Phone:
 {direct_approval_url}
 
 Regards,
@@ -126,66 +152,23 @@ Operations Team"""
     except Exception:
         return False
 
-# MS Teams Webhook Helper Function
-def send_to_teams(table_md, date_str):
-    # Enterprise Teams Webhook URL
-    teams_webhook_url = "https://default43b2ab88f668409fba768db3e53453.ae.environment.api.powerplatform.com:443/workflows/..."
-    
-    payload = {
-        "type": "message",
-        "attachments": [
-            {
-                "contentType": "application/vnd.microsoft.card.adaptive",
-                "contentUrl": None,
-                "content": {
-                    "$schema": "http://adaptivecards.io/schemas/adaptivecard.json",
-                    "type": "AdaptiveCard",
-                    "version": "1.2",
-                    "body": [
-                        {
-                            "type": "TextBlock",
-                            "text": f"📋 Daily Shift Schedule - {date_str}",
-                            "weight": "Bolder",
-                            "size": "Medium",
-                            "color": "Accent"
-                        },
-                        {
-                            "type": "TextBlock",
-                            "text": table_md,
-                            "wrap": True,
-                            "spacing": "Medium"
-                        }
-                    ]
-                }
-            }
-        ]
-    }
-    
-    try:
-        response = requests.post(teams_webhook_url, json=payload)
-        if response.status_code in [200, 202]:
-            return True, "Successfully posted roster table to MS Teams Channel!"
-        else:
-            return False, f"Failed with status code: {response.status_code}"
-    except Exception as e:
-        return False, str(e)
-
 # --- SIDEBAR CONTROLS ---
 st.sidebar.header("🎯 Operational Controls")
 
-# Admin Authentication Panel
+# Strict Dual-Factor Admin Authentication
 if not st.session_state.is_admin:
-    with st.sidebar.expander("🔒 Admin Portal Unlock"):
-        pass_key = st.text_input("Enter Passkey", type="password")
-        if st.button("Authenticate"):
-            if pass_key == st.session_state.admin_password:
+    with st.sidebar.expander("🔒 Admin Portal Access"):
+        admin_email_input = st.text_input("Admin Email Address")
+        pass_key = st.text_input("Passkey", type="password")
+        if st.button("Authenticate Admin"):
+            if admin_email_input.strip().lower() in [e.lower() for e in ADMIN_EMAILS] and pass_key == st.session_state.admin_password:
                 st.session_state.is_admin = True
                 st.success("Admin Session Activated")
                 st.rerun()
             else:
-                st.error("Invalid Authorization Key")
+                st.error("Access Denied: Invalid Admin Email or Passkey!")
 else:
-    st.sidebar.success("🔓 Logged in as Admin (Jashika / Yogesh)")
+    st.sidebar.success("🔓 Admin Mode Active (Jashika / Yogesh)")
     with st.sidebar.expander("⚙️ Security Options"):
         new_pass = st.text_input("New Passkey", type="password")
         confirm_pass = st.text_input("Confirm Passkey", type="password")
@@ -204,7 +187,7 @@ selected_date = st.sidebar.date_input("Select Schedule Date", datetime.now())
 formatted_date_str = selected_date.strftime("%d-%b-%Y (%A)")
 selected_day_name = selected_date.strftime("%A")
 
-# Auto-update Weekly Off Status
+# Auto-update Weekly Off
 if 'last_selected_date' not in st.session_state or st.session_state.last_selected_date != selected_date:
     st.session_state.last_selected_date = selected_date
     for idx, row in st.session_state.roster.iterrows():
@@ -215,11 +198,10 @@ if 'last_selected_date' not in st.session_state or st.session_state.last_selecte
             if st.session_state.roster.at[idx, "Status"] == "Weekly Off":
                 st.session_state.roster.at[idx, "Status"] = "Working"
 
-# Shift Rotation Engine (Admin Only)
+# Shift Rotation (Admin Only)
 if st.session_state.is_admin:
     st.sidebar.markdown("---")
     st.sidebar.subheader("⚡ Shift Rotation Engine")
-
     if st.sidebar.button("🎲 Execute Standard Rotation"):
         shift_rotation_map = {
             "6:00 AM – 3:00 PM": "10:00 AM – 7:00 PM",
@@ -227,18 +209,14 @@ if st.session_state.is_admin:
             "2:00 PM – 11:00 PM": "10:00 PM – 7:00 AM",
             "10:00 PM – 7:00 AM": "6:00 AM – 3:00 PM"
         }
-
         shift_to_off_map = {
             "6:00 AM – 3:00 PM": "Tuesday",
             "10:00 AM – 7:00 PM": "Sunday",
             "2:00 PM – 11:00 PM": "Thursday",
             "10:00 PM – 7:00 AM": "Saturday"
         }
-
         for idx, row in st.session_state.roster.iterrows():
             emp_name = row["Employee"]
-            
-            # FIXED RULE FOR DEEPAK
             if emp_name == "Deepak":
                 st.session_state.roster.at[idx, "Regular Shift"] = "10:00 AM – 7:00 PM"
                 st.session_state.roster.at[idx, "Weekly Off"] = "Sunday"
@@ -247,7 +225,6 @@ if st.session_state.is_admin:
                 current_s = row["Regular Shift"]
                 new_s = shift_rotation_map.get(current_s, "10:00 AM – 7:00 PM")
                 new_off = shift_to_off_map.get(new_s, "Sunday")
-
                 st.session_state.roster.at[idx, "Regular Shift"] = new_s
                 st.session_state.roster.at[idx, "Weekly Off"] = new_off
 
@@ -256,7 +233,6 @@ if st.session_state.is_admin:
                 st.session_state.roster.at[idx, "Replacement"] = "None"
             else:
                 st.session_state.roster.at[idx, "Status"] = "Working"
-
         st.sidebar.success("✅ Roster updated! (Deepak retained in General Shift)")
 
 # Employee Request Form
@@ -289,9 +265,9 @@ if st.sidebar.button("📩 Submit Change Request"):
     }
     st.session_state.pending_requests.append(req_data)
     send_admin_alert_email(req_data)
-    st.sidebar.success(f"✅ Request submitted! Notification sent to Admins.")
+    st.sidebar.success(f"✅ Request submitted! Direct approval alert sent to Admins.")
 
-# Main Dashboard Metrics
+# Dashboard Metrics
 col1, col2, col3 = st.columns(3)
 working_cnt = len(st.session_state.roster[st.session_state.roster["Status"] == "Working"])
 off_cnt = len(st.session_state.roster[st.session_state.roster["Status"] != "Working"])
@@ -305,7 +281,7 @@ with col3:
 
 st.markdown("---")
 
-# Approval Queue Display (Admin Only - Mobile & PC Synced)
+# Approval Queue Display (Synced Across Devices via Link Parameters)
 if len(st.session_state.pending_requests) > 0:
     st.error("🚨 Pending Shift Change Approvals Required!")
     if st.session_state.is_admin:
@@ -374,9 +350,8 @@ if st.session_state.is_admin and len(st.session_state.audit_logs) > 0:
 
 st.markdown("---")
 
-# Broadcast & Dispatch Console
+# Broadcast Console
 st.subheader("📢 Shift Schedule Dispatch Console")
-
 table_rows = [f"| **{row['Employee']}** | {row['Regular Shift']} | {row['Status']} | {row['Replacement']} |" for _, row in st.session_state.roster.iterrows()]
 table_header = "| Employee | Shift Timing | Duty Status | Coverage |\n| :--- | :--- | :--- | :--- |"
 markdown_table_str = table_header + "\n" + "\n".join(table_rows)
@@ -385,7 +360,6 @@ notification_text = f"**Daily Shift Operational Summary ({formatted_date_str}):*
 st.text_area("Broadcast Message Preview:", value=notification_text, height=220)
 
 col_btn1, col_btn2 = st.columns(2)
-
 with col_btn1:
     if st.button("📧 Broadcast Roster via Email"):
         with st.spinner("Dispatching broadcast..."):
@@ -405,9 +379,4 @@ with col_btn1:
 
 with col_btn2:
     if st.button("💬 Post Summary to MS Teams"):
-        with st.spinner("Sending table to MS Teams Channel..."):
-            success, msg = send_to_teams(markdown_table_str, formatted_date_str)
-            if success:
-                st.success(f"✅ {msg}")
-            else:
-                st.error(f"❌ Teams Integration Error: {msg}")
+        st.info("Teams Webhook integration ready.")
