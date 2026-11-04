@@ -196,7 +196,7 @@ def send_teams_approval_alert(req_data):
 
 # MS TEAMS DAILY ROSTER BROADCAST
 def send_to_teams(table_md, date_str):
-    teams_webhook_url = "https://default43b2ab88f668409fba768db3e53453.ae.environment.api.powerplatform.com:443/workflows/..."
+    teams_webhook_url = "https://default43b2ab88f668409fba768db3e53453.ae.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/24/workflows/6c3b2279434a4bb3a5bcbac7232f86d9/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=X3q_9Q3dMp1OdmKlx-HqTK4iYMbBN5LOFbpAwY-vQCE"
     
     payload = {
         "type": "message",
